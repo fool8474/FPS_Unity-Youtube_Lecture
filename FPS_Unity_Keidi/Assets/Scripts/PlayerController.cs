@@ -55,6 +55,8 @@ public class PlayerController : MonoBehaviour
         // 초기화.
         originPosY = theCamera.transform.localPosition.y;
         applyCrouchPosY = originPosY;
+
+        Cursor.lockState = CursorLockMode.Locked;
     }
 
 

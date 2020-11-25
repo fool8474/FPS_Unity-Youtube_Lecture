@@ -41,6 +41,7 @@ public class PlayerController : MonoBehaviour
 
     //필요한 컴포넌트
     [SerializeField] private Camera theCamera;
+    private GunController theGunController;
 
     private Rigidbody myRigid;
 
@@ -55,6 +56,7 @@ public class PlayerController : MonoBehaviour
         // 초기화.
         originPosY = theCamera.transform.localPosition.y;
         applyCrouchPosY = originPosY;
+        theGunController = FindObjectOfType<GunController>();
 
         Cursor.lockState = CursorLockMode.Locked;
     }
@@ -168,8 +170,9 @@ public class PlayerController : MonoBehaviour
     // 달리기 실행
     private void Running()
     {
-        if (isCrouch)
-            Crouch();
+        if (isCrouch) Crouch();
+
+        theGunController.CancelFineSight();
 
         isRun = true;
         applySpeed = runSpeed;

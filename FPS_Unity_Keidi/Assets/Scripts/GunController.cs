@@ -5,6 +5,9 @@ using UnityEngine;
 
 public class GunController : MonoBehaviour
 {
+    // 활성화 여부
+    public static bool isActivate = true;
+
     // 현재 장착된 총
     [SerializeField] private Gun currentGun;
 
@@ -16,7 +19,7 @@ public class GunController : MonoBehaviour
 
     // 필요한 컴포넌트
     [SerializeField] private Camera theCam;
-
+    private Crosshair theCrosshair;
 
     // 이펙트
     [SerializeField]
@@ -36,20 +39,27 @@ public class GunController : MonoBehaviour
     {
         originPos = Vector3.zero;
         audioSource = GetComponent<AudioSource>();
+        theCrosshair = FindObjectOfType<Crosshair>();
+
+        WeaponManager.currentWeapon = currentGun.GetComponent<Transform>();
+        WeaponManager.currentWeaponAnim = currentGun.anim;
     }
 
     void Update()
     {
-        GunFireRateCalc();
-        TryFire();
-        TryReload();
-        TryFineSight();
+        if (isActivate)
+        {
+            GunFireRateCalc();
+            TryFire();
+            TryReload();
+            TryFineSight();
+        }
     }
 
     // 정조준 시도
     private void TryFineSight()
     {
-        if(Input.GetButtonDown("Fire2") && !isReload)
+        if (Input.GetButtonDown("Fire2") && !isReload)
         {
             FineSight();
         }
@@ -58,7 +68,7 @@ public class GunController : MonoBehaviour
     // 정조준 취소
     public void CancelFineSight()
     {
-        if(isFineSightMode)
+        if (isFineSightMode)
         {
             FineSight();
         }
@@ -69,8 +79,9 @@ public class GunController : MonoBehaviour
     {
         isFineSightMode = !isFineSightMode;
         currentGun.anim.SetBool("FineSightMode", isFineSightMode);
+        theCrosshair.FineSightAnimation(isFineSightMode);
 
-        if(isFineSightMode)
+        if (isFineSightMode)
         {
             StopAllCoroutines();
             StartCoroutine(FineSightActivateCoroutine());
@@ -86,17 +97,17 @@ public class GunController : MonoBehaviour
     // 정조준 활성화
     IEnumerator FineSightActivateCoroutine()
     {
-        while(currentGun.transform.localPosition != currentGun.fineSightOriginPos)
+        while (currentGun.transform.localPosition != currentGun.fineSightOriginPos)
         {
             currentGun.transform.localPosition = Vector3.Lerp(currentGun.transform.localPosition, currentGun.fineSightOriginPos, 0.2f);
             yield return null;
         }
     }
-    
+
     // 정조준 비활성화
     IEnumerator FineSightDeActivateCoroutine()
     {
-        while(currentGun.transform.localPosition != originPos)
+        while (currentGun.transform.localPosition != originPos)
         {
             currentGun.transform.localPosition = Vector3.Lerp(currentGun.transform.localPosition, originPos, 0.2f);
             yield return null;
@@ -106,17 +117,26 @@ public class GunController : MonoBehaviour
     // 재장전 시도
     private void TryReload()
     {
-        if(Input.GetKeyDown(KeyCode.R) && !isReload && currentGun.currentBulletCount < currentGun.reloadBulletCount)
+        if (Input.GetKeyDown(KeyCode.R) && !isReload && currentGun.currentBulletCount < currentGun.reloadBulletCount)
         {
             CancelFineSight();
             StartCoroutine(ReloadCoroutine());
         }
     }
 
+    public void CancelReload()
+    {
+        if (isReload)
+        {
+            StopAllCoroutines();
+            isReload = false;
+        }
+    }
+
     // 발사 시도
     private void TryFire()
     {
-        if (Input.GetButton("Fire1") && currentFireRate <= 0 && isReload == false)
+        if (Input.GetButton("Fire1") && currentFireRate <= 0 && isReload == false && currentGun.anim.GetBool("Run") == false)
         {
             Fire();
         }
@@ -177,6 +197,7 @@ public class GunController : MonoBehaviour
     // 발사 후 계산
     private void Shoot()
     {
+        theCrosshair.FireAnimation();
         currentGun.currentBulletCount--;
         currentFireRate = currentGun.fireRate; // 연사 속도 재계산
         PlaySE(currentGun.fireSound);
@@ -193,12 +214,12 @@ public class GunController : MonoBehaviour
         Vector3 recoilBack = new Vector3(currentGun.retroActionForce, originPos.y, originPos.z);
         Vector3 retroActionRecoilBack = new Vector3(currentGun.retroActionFineSightForce, currentGun.fineSightOriginPos.y, currentGun.fineSightOriginPos.z);
 
-        if(!isFineSightMode)
+        if (!isFineSightMode)
         {
             currentGun.transform.localPosition = originPos;
 
             // 반동 시작
-            while(currentGun.transform.localPosition.x <= currentGun.retroActionForce - 0.02f)
+            while (currentGun.transform.localPosition.x <= currentGun.retroActionForce - 0.02f)
             {
                 currentGun.transform.localPosition = Vector3.Lerp(currentGun.transform.localPosition, recoilBack, 0.4f);
                 yield return null;
@@ -230,13 +251,17 @@ public class GunController : MonoBehaviour
 
     private void Hit()
     {
-        if(Physics.Raycast(theCam.transform.position, theCam.transform.forward, out hitInfo, currentGun.range))
+        if (Physics.Raycast(theCam.transform.position, theCam.transform.forward +
+            new Vector3(UnityEngine.Random.Range(-theCrosshair.GetAccuracy() - currentGun.accuracy, theCrosshair.GetAccuracy() + currentGun.accuracy),
+            UnityEngine.Random.Range(-theCrosshair.GetAccuracy() - currentGun.accuracy, theCrosshair.GetAccuracy() + currentGun.accuracy),
+                0)
+            , out hitInfo, currentGun.range))
         {
             var clone = Instantiate(hit_effect_prefab, hitInfo.point, Quaternion.LookRotation(hitInfo.normal));
             Destroy(clone, 2f);
         }
     }
-    
+
     // 연사속도 재계산
     private void GunFireRateCalc()
     {
@@ -253,5 +278,27 @@ public class GunController : MonoBehaviour
     public Gun GetGun()
     {
         return currentGun;
+    }
+
+    public bool GetFineSightMode()
+    {
+        return isFineSightMode;
+    }
+
+    public void GunChange(Gun _gun)
+    {
+        if (WeaponManager.currentWeapon != null)
+        {
+            WeaponManager.currentWeapon.gameObject.SetActive(false);
+        }
+
+        currentGun = _gun;
+
+        WeaponManager.currentWeapon = currentGun.GetComponent<Transform>();
+        WeaponManager.currentWeaponAnim = currentGun.anim;
+
+        currentGun.transform.localPosition = Vector3.zero;
+        currentGun.gameObject.SetActive(true);
+        isActivate = true;
     }
 }
